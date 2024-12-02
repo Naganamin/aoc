@@ -1,4 +1,4 @@
-# Advent of Code 2024 - Day 01
+# Advent of Code 2024 - Day 02
 
 ```elixir
 Mix.install([
@@ -8,13 +8,13 @@ Mix.install([
 
 ## Introduction
 
-[2024 - Day 01](https://adventofcode.com/2024/day/1)
+[2024 - Day 02](https://adventofcode.com/2024/day/2)
 
 ## Puzzle
 
 ```elixir
 {:ok, puzzle_input} =
-  KinoAOC.download_puzzle("2024", "1", System.fetch_env!("LB_AOC_SESSION"))
+  KinoAOC.download_puzzle("2024", "2", System.fetch_env!("LB_AOC_SESSION"))
 ```
 
 ## Parser
@@ -47,10 +47,10 @@ defmodule ParserTest do
   import Parser
 
   @input """
-         5   9
-         4   6
-         """
-  @expected [[5, 9], [4, 6]]
+  7 6 4 2 1
+  1 2 7 8 9
+  """
+  @expected [[7, 6, 4, 2, 1], [1, 2, 7, 8, 9]]
 
   test "parse test" do
     actual = parse(@input)
@@ -59,6 +59,29 @@ defmodule ParserTest do
 end
 
 ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def is_safe(report) do
+    report
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.reduce_while(nil, fn [a, b], prev_level ->
+      level = a - b
+
+      cond do
+        abs(level) < 1 or abs(level) > 3 -> {:halt, false}
+        prev_level != nil and sign(prev_level) != sign(level) -> {:halt, false}
+        true -> {:cont, level}
+      end
+    end)
+  end
+
+  defp sign(x) when x > 0, do: "+"
+  defp sign(x) when x < 0, do: "-"
+end
 ```
 
 <!-- livebook:{"branch_parent_index":2} -->
@@ -77,13 +100,7 @@ defmodule PartOne do
   def run(input) do
     input
     |> Parser.parse()
-    |> Enum.reduce([[], []], fn [l, r], [ll, rl] ->
-      [[l | ll], [r | rl]]
-    end)
-    |> Enum.map(&Enum.sort/1)
-    |> Enum.zip()
-    |> Enum.map(fn {a, b} -> abs(a - b) end)
-    |> Enum.sum()
+    |> Enum.count(&Shared.is_safe/1)
   end
 end
 ```
@@ -98,14 +115,14 @@ defmodule PartOneTest do
   import PartOne
 
   @input """
-         3   4
-         4   3
-         2   5
-         1   3
-         3   9
-         3   3
-         """
-  @expected 11
+  7 6 4 2 1
+  1 2 7 8 9
+  9 7 6 2 1
+  1 3 2 4 5
+  8 6 4 4 1
+  1 3 6 7 9
+  """
+  @expected 2
 
   test "part one" do
     actual = run(@input)
@@ -136,17 +153,18 @@ defmodule PartTwo do
   end
 
   def run(input) do
-    [list, dict] =
-      input
-      |> Parser.parse()
-      |> Enum.reduce([[], []], fn [l, r], [ll, rl] ->
-        [[l | ll], [r | rl]]
-      end)
-      |> then(fn [ll, rl] -> [ll, Enum.frequencies(rl)] end)
+    input
+    |> Parser.parse()
+    |> Enum.count(&is_safe/1)
+  end
 
-    list
-    |> Enum.map(&(&1 * Map.get(dict, &1, 0)))
-    |> Enum.sum()
+  defp is_safe(report) do
+    Enum.count(report)..0
+    |> Enum.any?(fn i ->
+      report
+      |> List.delete_at(i)
+      |> Shared.is_safe()
+    end)
   end
 end
 ```
@@ -161,14 +179,14 @@ defmodule PartTwoTest do
   import PartTwo
 
   @input """
-         3   4
-         4   3
-         2   5
-         1   3
-         3   9
-         3   3
-         """
-  @expected 31
+  7 6 4 2 1
+  1 2 7 8 9
+  9 7 6 2 1
+  1 3 2 4 5
+  8 6 4 4 1
+  1 3 6 7 9
+  """
+  @expected 4
 
   test "part two" do
     actual = run(@input)
@@ -185,4 +203,4 @@ ExUnit.run()
 PartTwo.solve(puzzle_input)
 ```
 
-<!-- livebook:{"offset":2746,"stamp":{"token":"XCP.OWXZ4nleWb7vLNj3ShCLIi5EhKYN0HRQgAKATIupfas5SppKDAZLeMq73CURtG6O_swfXS5_Ru3LqvA_-K-MQWlOVnA958nAzv0qpbjL6t8tHNCI3Ho","version":2}} -->
+<!-- livebook:{"offset":2967,"stamp":{"token":"XCP.L9vs2X3lGnmgHdor8Tit31oVEtgB74RqPnPIfJVAk42FjeYliVGw5q5IeoJeaVznlnIVSqnJzIYguSurTznVvGYmU3nKJvXkExu4zCft6JDNRKGONg8","version":2}} -->
