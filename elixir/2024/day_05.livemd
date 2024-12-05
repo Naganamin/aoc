@@ -1,0 +1,248 @@
+# Advent of Code 2024 - Day 05
+
+```elixir
+Mix.install([
+  {:kino_aoc, "~> 0.1.7"}
+])
+```
+
+## Introduction
+
+[2024 - Day 05](https://adventofcode.com/2024/day/5)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiI1Iiwic2Vzc2lvbl9zZWNyZXQiOiJBT0NfU0VTU0lPTiIsInllYXIiOiIyMDI0In0","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "5", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    [rules, update] =
+      input
+      |> String.split("\n", trim: true)
+      |> Enum.chunk_by(&String.contains?(&1, ","))
+
+    {rules
+     |> Enum.map(&String.split(&1, "|"))
+     |> MapSet.new(&List.to_tuple/1), update |> Enum.map(&String.split(&1, ","))}
+  end
+end
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def sort(list, rules) do
+    list
+    |> Enum.sort(fn a, b -> MapSet.member?(rules, {a, b}) end)
+  end
+
+  def sum(update) do
+    update
+    |> Enum.map(fn line ->
+      Enum.at(line, div(length(line), 2))
+      |> String.to_integer()
+    end)
+    |> Enum.sum()
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  2|1
+  3|2
+  2|7
+
+  10,11
+  12,13
+  """
+  @expected {MapSet.new([{"2", "1"}, {"3", "2"}, {"2", "7"}]), [["10", "11"], ["12", "13"]]}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {rules, update} = Parser.parse(input)
+
+    update
+    |> Enum.filter(&(&1 == Shared.sort(&1, rules)))
+    |> Shared.sum()
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  47|53
+  97|13
+  97|61
+  97|47
+  75|29
+  61|13
+  75|53
+  29|13
+  97|29
+  53|29
+  61|53
+  97|53
+  61|29
+  47|13
+  75|47
+  97|75
+  47|61
+  75|61
+  47|29
+  75|13
+  53|13
+
+  75,47,61,53,29
+  97,61,53,29,13
+  75,29,13
+  75,97,47,61,53
+  61,13,29
+  97,13,75,29,47
+  """
+  @expected 143
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {rules, update} = Parser.parse(input)
+
+    update
+    |> Enum.filter(&(&1 != Shared.sort(&1, rules)))
+    |> Enum.map(&Shared.sort(&1, rules))
+    |> Shared.sum()
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  47|53
+  97|13
+  97|61
+  97|47
+  75|29
+  61|13
+  75|53
+  29|13
+  97|29
+  53|29
+  61|53
+  97|53
+  61|29
+  47|13
+  75|47
+  97|75
+  47|61
+  75|61
+  47|29
+  75|13
+  53|13
+
+  75,47,61,53,29
+  97,61,53,29,13
+  75,29,13
+  75,97,47,61,53
+  61,13,29
+  97,13,75,29,47
+  """
+  @expected 123
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":3550,"stamp":{"token":"XCP.spW0g-qTt4EhMImIz-1tmPip5R7csQ_b3tqigWVFR8HV6LQDreWKcpCRdiN2vWjyh0For3VYtBoiekZ6f_QC1Wx8uVF6c4g4G6_t5AkiZXUHqmDV-0M","version":2}} -->
