@@ -1,0 +1,248 @@
+# Advent of Code 2024 - Day 06
+
+```elixir
+Mix.install([
+  {:kino_aoc, "~> 0.1.7"}
+])
+```
+
+## Introduction
+
+[2024 - Day 06](https://adventofcode.com/2024/day/6)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiI2Iiwic2Vzc2lvbl9zZWNyZXQiOiJBT0NfU0VTU0lPTiIsInllYXIiOiIyMDI0In0","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "6", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.reduce({%{}, nil}, fn {line, y}, {map, start} ->
+      line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.reduce({map, start}, fn
+        {"^", x}, {map, _} -> {Map.put(map, {x, y}, "."), {x, y}}
+        {char, x}, {map, start} -> {Map.put(map, {x, y}, char), start}
+      end)
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  .#
+  ^.
+  """
+  @expected {%{{0, 0} => ".", {0, 1} => ".", {1, 0} => "#", {1, 1} => "."}, {0, 1}}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def rotate({0, -1}), do: {1, 0}
+  def rotate({1, 0}), do: {0, 1}
+  def rotate({0, 1}), do: {-1, 0}
+  def rotate({-1, 0}), do: {0, -1}
+
+  def patrol(map, steps = [{curr = {x, y}, dir = {vx, vy}} | rest]) do
+    next = {x + vx, y + vy}
+
+    case Map.get(map, next) do
+      "." -> patrol(map, [{next, dir} | steps])
+      "#" -> patrol(map, [{curr, rotate(dir)} | rest])
+      nil -> Enum.reverse(steps)
+    end
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {map, start} = Parser.parse(input)
+
+    Shared.patrol(map, [{start, {0, -1}}])
+    |> Enum.uniq_by(&elem(&1, 0))
+    |> Enum.count()
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  ....#.....
+  .........#
+  ..........
+  ..#.......
+  .......#..
+  ..........
+  .#..^.....
+  ........#.
+  #.........
+  ......#...
+  """
+  @expected 41
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {map, start} = Parser.parse(input)
+    patrol_path = 
+      Shared.patrol(map, [{start, {0, -1}}])
+      |> Enum.uniq_by(&elem(&1, 0))
+      |> Enum.chunk_every(2, 1, :discard)
+
+    patrol_path
+    |> Enum.count(fn [{start, dir}, {obstacle, _}] ->
+      steps = MapSet.new([{start, dir}])
+      map
+      |> Map.put(obstacle, "#")
+      |> loop?(steps, dir, start)
+    end)
+  end
+
+  defp loop?(map, steps, {vx, vy}, {x, y}) do
+    next = {x + vx, y + vy}
+
+    move =
+      case Map.get(map, next) do
+        "." -> {next, {vx, vy}}
+        "#" -> {{x, y}, Shared.rotate({vx, vy})}
+        nil -> :go_out
+      end
+
+    case move do
+      :go_out ->
+        false
+
+      move = {next, direction} ->
+        if MapSet.member?(steps, move) do
+          true
+        else
+          loop?(
+            map,
+            MapSet.put(steps, {next, direction}),
+            direction,
+            next
+          )
+        end
+    end
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  ....#.....
+  .........#
+  ..........
+  ..#.......
+  .......#..
+  ..........
+  .#..^.....
+  ........#.
+  #.........
+  ......#...
+  """
+  @expected 6
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4312,"stamp":{"token":"XCP.bLMMFkvZkkYSFwUNMQZ-I_Q_wZtorCpWRBhL_lWCnxQHu5EHsY58WFu6z7wcrA2gONqOYSmYvd0-TejMemZOeTQvcdBfCHUftIeXuQnHY_vANfc8YJI","version":2}} -->
