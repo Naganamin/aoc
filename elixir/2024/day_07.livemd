@@ -1,0 +1,241 @@
+# Advent of Code 2024 - Day 07
+
+```elixir
+Mix.install([
+  {:kino_aoc, "~> 0.1.7"}
+])
+```
+
+## Introduction
+
+[2024 - Day 07](https://adventofcode.com/2024/day/7)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiI3Iiwic2Vzc2lvbl9zZWNyZXQiOiJBT0NfU0VTU0lPTiIsInllYXIiOiIyMDI0In0","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "7", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [sum, num] =
+        line
+        |> String.split(":")
+
+      [
+        String.to_integer(sum),
+        num |> String.split(" ", trim: true) |> Enum.map(&String.to_integer/1)
+      ]
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  10: 1 10
+  12: 2 2
+  """
+  @expected [[10, [1, 10]], [12, [2, 2]]]
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def run(input, build_op) do
+    input
+    |> Parser.parse()
+    |> Enum.map(fn [sum, num = [head | tail]] ->
+      Task.async(fn ->
+        (Enum.count(num) - 1)
+        |> build_op.()
+        |> Enum.any?(fn op ->
+          tail
+          |> Enum.reduce({head, op}, fn n, {result, [op | ops]} ->
+            {f(op).(result, n), ops}
+          end)
+          |> elem(0)
+          |> then(&(&1 == sum))
+        end)
+        |> then(fn
+          true -> sum
+          _ -> 0
+        end)
+      end)
+    end)
+    |> Enum.map(&(Task.await(&1, :infinity)))
+    |> Enum.sum()
+  end
+
+  def f("+"), do: &+/2
+  def f("*"), do: &*/2
+  def f("m"), do: &merge/2
+
+  defp merge(a, b) do
+    b
+    |> Integer.digits()
+    |> Enum.count()
+    |> then(&Integer.pow(10, &1))
+    |> Kernel.*(a)
+    |> Kernel.+(b)
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, &build_op/1)
+
+  defp build_op(1), do: [["+"], ["*"]]
+
+  defp build_op(length) do
+    1..(length - 1)
+    |> Enum.reduce(["+", "*"], fn _, ops ->
+      for op1 <- ops, op2 <- ["+", "*"], do: op1 <> op2
+    end)
+    |> Enum.map(&String.codepoints/1)
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  190: 10 19
+  3267: 81 40 27
+  83: 17 5
+  156: 15 6
+  7290: 6 8 6 15
+  161011: 16 10 13
+  192: 17 8 14
+  21037: 9 7 18 13
+  292: 11 6 16 20
+  """
+  @expected 3749
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, &build_op/1)
+
+  def build_op(1), do: [["+"], ["*"], ["m"]]
+
+  def build_op(length) do
+    1..(length - 1)
+    |> Enum.reduce(["+", "*", "m"], fn _, ops ->
+      for op1 <- ops, op2 <- ["+", "*", "m"], do: op1 <> op2
+    end)
+    |> Enum.map(&String.codepoints/1)
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  190: 10 19
+  3267: 81 40 27
+  83: 17 5
+  156: 15 6
+  7290: 6 8 6 15
+  161011: 16 10 13
+  192: 17 8 14
+  21037: 9 7 18 13
+  292: 11 6 16 20
+  """
+  @expected 11387
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4057,"stamp":{"token":"XCP.k8z6YoRx6QDRffIoAksd9Jrp6aFlvjtjbu_bMd925FkTsOwDc0MUYU3DhuAXTIC0oSSc9YWfd_JkfaUCBOAmIsmDUS_2PGW17COPWDKixgoZYP15FXw","version":2}} -->
