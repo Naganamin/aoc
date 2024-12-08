@@ -1,0 +1,242 @@
+# Advent of Code 2024 - Day 08
+
+```elixir
+Mix.install([
+  {:kino_aoc, "~> 0.1.7"}
+])
+```
+
+## Introduction
+
+[2024 - Day 08](https://adventofcode.com/2024/day/8)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiI4Iiwic2Vzc2lvbl9zZWNyZXQiOiJBT0NfU0VTU0lPTiIsInllYXIiOiIyMDI0In0","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "8", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    lines =
+      [head | _] =
+      input
+      |> String.split("\n", trim: true)
+
+    lines
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, y} ->
+      line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.map(fn {char, x} -> {{x, y}, char} end)
+    end)
+    |> Enum.group_by(fn {_, char} -> char end, fn {pos, _} -> pos end)
+    |> Map.filter(fn {k, _} -> k != "." end)
+    |> then(fn map ->
+      {map, String.length(head), Enum.count(lines)}
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  ...A
+  4.f.
+  z...
+  """
+  @expected {%{"A" => [{3, 0}], "4" => [{0, 1}], "f" => [{2, 1}], "z" => [{0, 2}]}, 4, 3}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def solve(input, case) do
+    {antennas, max_x, max_y} = Parser.parse(input)
+
+    antennas
+    |> Enum.reduce([], fn {_, points}, frequencies ->
+      frequencies(points, max_x, max_y, case, frequencies)
+    end)
+    |> List.flatten()
+    |> Enum.uniq()
+    |> Enum.count()
+  end
+
+  defp frequencies([_], _, _, _, freq), do: freq
+
+  defp frequencies([{x, y} | tail], max_x, max_y, case, freq) do
+    tail
+    |> Enum.map(fn {tx, ty} ->
+      dx = x - tx
+      dy = y - ty
+
+      [
+        jump(x, y, dx, dy, max_x, max_y, case),
+        jump(tx, ty, -dx, -dy, max_x, max_y, case)
+      ]
+    end)
+    |> then(&frequencies(tail, max_x, max_y, case, [&1 | freq]))
+  end
+
+  defp in_range(x, y, max_x, max_y), do: x > -1 and x < max_x and y > -1 and y < max_y
+
+  defp jump(x, y, dx, dy, max_x, max_y, case) do
+    stream =
+      case case do
+        :part_one -> [1]
+        :part_two -> Stream.from_index()
+      end
+
+    stream
+    |> Stream.map(fn step ->
+      x = x + step * dx
+      y = y + step * dy
+      {x, y}
+    end)
+    |> Enum.take_while(fn {x, y} -> in_range(x, y, max_x, max_y) end)
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.solve(input, :part_one)
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  ............
+  ........0...
+  .....0......
+  .......0....
+  ....0.......
+  ......A.....
+  ............
+  ............
+  ........A...
+  .........A..
+  ............
+  ............
+  """
+  @expected 14
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.solve(input, :part_two)
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  ............
+  ........0...
+  .....0......
+  .......0....
+  ....0.......
+  ......A.....
+  ............
+  ............
+  ........A...
+  .........A..
+  ............
+  ............
+  """
+  @expected 34
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4193,"stamp":{"token":"XCP.lcd9rBUSN5fa7X4aDeusVqnJHsxtKerObRtDAUxfkV2ZAp01hgKE_PR6DdlZcPk1B5nmbpmWginkLigqJANnoeBKUnl_kSYaehYYAz8dCpJGsiTae4U","version":2}} -->
