@@ -3,7 +3,7 @@
 ```elixir
 Mix.install([
   :kino_aoc,
-  :cachex
+  :memoize
 ])
 ```
 
@@ -59,11 +59,10 @@ ExUnit.run()
 
 ```elixir
 defmodule Shared do
+  use Memoize
+
   def run(input, max_step) do
-    case Cachex.start_link(:aoc_d11) do
-      {:ok, _} -> nil
-      {:error, {:already_started, _}} -> Cachex.clear(:aoc_d11)
-    end
+    Memoize.invalidate(Shared, :blink)
 
     input
     |> Parser.parse()
@@ -71,37 +70,21 @@ defmodule Shared do
     |> Enum.sum()
   end
 
-  defp blink(num, max_step, step) do
-    case Cachex.get(:aoc_d11, {num, step}) do
-      {:ok, nil} ->
-        value =
-          cond do
-            step >= max_step ->
-              1
+  defmemop blink(_, max_step, step) when step >= max_step, do: 1
+  defmemop blink(0, max_step, step), do: blink(1, max_step, step + 1)
 
-            num == 0 ->
-              blink(1, max_step, step + 1)
+  defmemop blink(num, max_step, step) do
+    digits = Integer.digits(num) |> Enum.count()
 
-            true ->
-              digits = Integer.digits(num) |> Enum.count()
+    cond do
+      rem(digits, 2) != 0 ->
+        blink(num * 2024, max_step, step + 1)
 
-              cond do
-                rem(digits, 2) != 0 ->
-                  blink(num * 2024, max_step, step + 1)
-
-                true ->
-                  divisor = Integer.pow(10, div(digits, 2))
-                  left = div(num, divisor)
-                  right = rem(num, divisor)
-                  blink(left, max_step, step + 1) + blink(right, max_step, step + 1)
-              end
-          end
-
-        {:ok, true} = Cachex.put(:aoc_d11, {num, step}, value)
-        value
-
-      {:ok, value} ->
-        value
+      true ->
+        divisor = Integer.pow(10, div(digits, 2))
+        left = div(num, divisor)
+        right = rem(num, divisor)
+        blink(left, max_step, step + 1) + blink(right, max_step, step + 1)
     end
   end
 end
@@ -148,7 +131,7 @@ ExUnit.run()
 ### Solution - Part 1
 
 ```elixir
-PartOne.run(puzzle_input)
+PartOne.solve(puzzle_input)
 ```
 
 <!-- livebook:{"branch_parent_index":2} -->
@@ -195,4 +178,4 @@ ExUnit.run()
 PartTwo.solve(puzzle_input)
 ```
 
-<!-- livebook:{"offset":3374,"stamp":{"token":"XCP.EuXqKw40MPEJb4rhyXM6AtSYmJdQWDbQs6WPvj_CpNNT5HdbgANCyyZNM_8xQEGnWngEcB855qUPMRwQ3zPbgODh1jUgRPq3uMBcWrw3aCdcNver8Ww","version":2}} -->
+<!-- livebook:{"offset":2963,"stamp":{"token":"XCP.K4C3UILqPFZhRujVa_hqXBJBBdiXrH4gnHzdFYdwRnVKoLN66bM2rbM0SiFGmKAR0VFA5so0mTia5isSiBkmraDEaCKiOyHtlEvRgJJVAUlI0UqLaKI","version":2}} -->
