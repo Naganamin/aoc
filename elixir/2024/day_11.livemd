@@ -1,0 +1,198 @@
+# Advent of Code 2024 - Day 11
+
+```elixir
+Mix.install([
+  :kino_aoc,
+  :cachex
+])
+```
+
+## Introduction
+
+[2024 - Day 11](https://adventofcode.com/2024/day/11)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxMSIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "11", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\s", trim: true)
+    |> Enum.map(&String.to_integer/1)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input "1 2"
+  @expected [1, 2]
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def run(input, max_step) do
+    case Cachex.start_link(:aoc_d11) do
+      {:ok, _} -> nil
+      {:error, {:already_started, _}} -> Cachex.clear(:aoc_d11)
+    end
+
+    input
+    |> Parser.parse()
+    |> Enum.map(fn num -> blink(num, max_step, 0) end)
+    |> Enum.sum()
+  end
+
+  defp blink(num, max_step, step) do
+    case Cachex.get(:aoc_d11, {num, step}) do
+      {:ok, nil} ->
+        value =
+          cond do
+            step >= max_step ->
+              1
+
+            num == 0 ->
+              blink(1, max_step, step + 1)
+
+            true ->
+              digits = Integer.digits(num) |> Enum.count()
+
+              cond do
+                rem(digits, 2) != 0 ->
+                  blink(num * 2024, max_step, step + 1)
+
+                true ->
+                  divisor = Integer.pow(10, div(digits, 2))
+                  left = div(num, divisor)
+                  right = rem(num, divisor)
+                  blink(left, max_step, step + 1) + blink(right, max_step, step + 1)
+              end
+          end
+
+        {:ok, true} = Cachex.put(:aoc_d11, {num, step}, value)
+        value
+
+      {:ok, value} ->
+        value
+    end
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, 25)
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input "125 17"
+  @expected 55312
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.run(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, 75)
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input "125 17"
+  @expected 65601038650482
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":3374,"stamp":{"token":"XCP.EuXqKw40MPEJb4rhyXM6AtSYmJdQWDbQs6WPvj_CpNNT5HdbgANCyyZNM_8xQEGnWngEcB855qUPMRwQ3zPbgODh1jUgRPq3uMBcWrw3aCdcNver8Ww","version":2}} -->
