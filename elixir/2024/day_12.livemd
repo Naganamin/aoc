@@ -1,0 +1,337 @@
+# Advent of Code 2024 - Day 12
+
+```elixir
+Mix.install([
+  :kino_aoc
+])
+```
+
+## Introduction
+
+[2024 - Day 12](https://adventofcode.com/2024/day/12)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxMiIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "12", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    lines =
+      [head | _] =
+      input
+      |> String.split("\n", trim: true)
+
+    lines
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, y} ->
+      line
+      |> String.codepoints()
+      |> Enum.with_index()
+      |> Enum.map(fn {char, x} -> {{x, y}, char} end)
+    end)
+    |> then(fn map ->
+      {Map.new(map), String.length(head), Enum.count(lines)}
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  AA
+  BB
+  CC
+  """
+  @expected {
+    %{
+      {0, 0} => "A",
+      {0, 1} => "B",
+      {0, 2} => "C",
+      {1, 0} => "A",
+      {1, 1} => "B",
+      {1, 2} => "C"
+    },
+    2,
+    3
+  }
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule SharedData do
+  defmacro __using__(_) do
+    quote do
+      @dir [{1, 0}, {0, -1}, {-1, 0}, {0, 1}]
+    end
+  end
+end
+
+defmodule Shared do
+  use SharedData
+
+  def run(input, perimeter_or_edge) do
+    {garden, max_x, max_y} = Parser.parse(input)
+
+    {filled, _} =
+      for x <- 0..(max_x - 1),
+          y <- 0..(max_y - 1),
+          reduce: {%{}, MapSet.new()} do
+        acc = {groups, visited} ->
+          point = {x, y}
+
+          cond do
+            MapSet.member?(visited, point) ->
+              acc
+
+            true ->
+              plant = Map.get(garden, point)
+              group = fill(garden, MapSet.new(), plant, point)
+
+              {
+                Map.update(groups, plant, [group], &[group | &1]),
+                MapSet.union(visited, group)
+              }
+          end
+      end
+
+    filled
+    |> Enum.flat_map(fn {_, groups} ->
+      groups
+      |> Enum.map(fn group ->
+        area = MapSet.size(group)
+
+        area * perimeter_or_edge.(group)
+      end)
+    end)
+    |> Enum.sum()
+  end
+
+  defp fill(garden, group, plant, curr = {x, y}) do
+    cond do
+      MapSet.member?(group, curr) ->
+        group
+
+      Map.get(garden, curr) != plant ->
+        group
+
+      true ->
+        group = MapSet.put(group, curr)
+
+        @dir
+        |> Enum.map(fn {dx, dy} -> {x + dx, y + dy} end)
+        |> Enum.reduce(group, fn next, group ->
+          fill(garden, group, plant, next)
+        end)
+    end
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  use SharedData
+
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, &perimeter/1)
+
+  defp perimeter(group) do
+    group
+    |> Enum.map(fn {x, y} ->
+      case @dir
+           |> Enum.map(fn {dx, dy} -> {x + dx, y + dy} end)
+           |> Enum.count(&MapSet.member?(group, &1)) do
+        1 -> 3
+        2 -> 2
+        3 -> 1
+        4 -> 0
+        0 -> 4
+      end
+    end)
+    |> Enum.sum()
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  RRRRIICCFF
+  RRRRIICCCF
+  VVRRRCCFFF
+  VVRCCCJFFF
+  VVVVCJJCFE
+  VVIVCCJJEE
+  VVIIICJJEE
+  MIIIIIJJEE
+  MIIISIJEEE
+  MMMISSJEEE
+  """
+  @expected 1930
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input), do: Shared.run(input, &edge/1)
+
+  def edge(group) do
+    [
+      {&by_y/1, &by_x/1, [{0, -1}, {0, 1}]},
+      {&by_x/1, &by_y/1, [{-1, 0}, {1, 0}]}
+    ]
+    |> Enum.map(fn {group_fn, chunk_fn, sides} ->
+      count_edge(group, group_fn, chunk_fn, sides)
+    end)
+    |> Enum.sum()
+  end
+
+  defp count_edge(group, group_fn, chunk_fn, sides) do
+    group
+    |> Enum.group_by(group_fn)
+    |> Enum.flat_map(fn {_, points} ->
+      sides
+      |> Enum.map(fn side ->
+        points
+        |> chunk_edge(group, chunk_fn, side)
+        |> Enum.count()
+      end)
+    end)
+    |> Enum.sum()
+  end
+
+  defp chunk_edge(points, group, by, _side = {dx, dy}) do
+    points
+    |> Enum.filter(fn {x, y} -> !MapSet.member?(group, {x + dx, y + dy}) end)
+    |> Enum.sort_by(by)
+    |> Enum.chunk_while(
+      [],
+      fn
+        ele, [] ->
+          {:cont, [ele]}
+
+        ele, acc = [h | _] ->
+          if by.(h) + 1 == by.(ele) do
+            {:cont, [ele | acc]}
+          else
+            {:cont, Enum.reverse(acc), [ele]}
+          end
+      end,
+      fn
+        [] -> {:cont, []}
+        acc -> {:cont, Enum.reverse(acc), []}
+      end
+    )
+  end
+
+  defp by_x({x, _}), do: x
+  defp by_y({_, y}), do: y
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  RRRRIICCFF
+  RRRRIICCCF
+  VVRRRCCFFF
+  VVRCCCJFFF
+  VVVVCJJCFE
+  VVIVCCJJEE
+  VVIIICJJEE
+  MIIIIIJJEE
+  MIIISIJEEE
+  MMMISSJEEE
+  """
+  @expected 1206
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":5878,"stamp":{"token":"XCP.8iO2v_ft71SlTA2mUslMbcnEYGaLdfnB8VnX_aJ2aeog2WdfaaP4ppscvu7gDFRuvuzl28w98XRG5-vfs9vgVOC2yoCeQOEkazfvBMUdcbNbRbOXcG8","version":2}} -->
