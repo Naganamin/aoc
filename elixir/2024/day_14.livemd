@@ -1,0 +1,243 @@
+# Advent of Code 2024 - Day 14
+
+```elixir
+Mix.install([
+  :kino_aoc
+])
+```
+
+## Introduction
+
+[2024 - Day 14](https://adventofcode.com/2024/day/14)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxNCIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "14", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  @reg ~r/(\d+),(\d+) v=(-?\d+),(-?\d+)/
+
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      [[_, x, y, vx, vy]] = Regex.scan(@reg, line)
+
+      [x, y, vx, vy]
+      |> Enum.map(&String.to_integer/1)
+    end)
+    |> Enum.group_by(
+      fn [x, y | _] -> {x, y} end,
+      fn [_, _, vx, vy] -> {vx, vy} end
+    )
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  p=0,4 v=3,-3
+  p=6,3 v=-1,-3
+  p=0,4 v=-1,2
+  """
+  @expected %{{0, 4} => [{3, -3}, {-1, 2}], {6, 3} => [{-1, -3}]}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def move(map, max_turn, max_x, max_y) do
+    map
+    |> Enum.reduce(%{}, fn {{x, y}, robots}, map ->
+      robots
+      |> Enum.reduce(map, fn robot = {vx, vy}, map ->
+        next = wrap(x + vx * max_turn, y + vy * max_turn, max_x, max_y)
+        Map.update(map, next, [robot], &[robot | &1])
+      end)
+    end)
+  end
+
+  defp wrap(x, y, max_x, max_y) do
+    new_x = case rem(x, max_x) do
+      x when x > -1 -> x
+      x -> x + max_x
+    end
+
+    new_y = case rem(y, max_y) do
+      y when y > -1 -> y
+      y -> y + max_y
+    end
+
+    {new_x, new_y}
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input, max_x \\ 101, max_y \\ 103) do
+    map =
+      input
+      |> Parser.parse()
+      |> Shared.move(100, max_x, max_y)
+
+    half_x = div(max_x, 2)
+    half_y = div(max_y, 2)
+
+    [
+      {0, 0, half_x - 1, half_y - 1},
+      {half_x + 1, 0, max_x, half_y - 1},
+      {0, half_y + 1, half_x - 1, max_y},
+      {half_x + 1, half_y + 1, max_x, max_y}
+    ]
+    |> Enum.map(fn quarter -> count_quarter(map, quarter) end)
+    |> Enum.reduce(&Kernel.*/2)
+  end
+
+  defp count_quarter(map, {min_x, min_y, max_x, max_y}) do
+    map
+    |> Enum.filter(fn {{x, y}, _} ->
+      x >= min_x and x <= max_x and
+        y >= min_y and y <= max_y
+    end)
+    |> Enum.map(fn {_, robots} -> Enum.count(robots) end)
+    |> Enum.sum()
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  p=0,4 v=3,-3
+  p=6,3 v=-1,-3
+  p=10,3 v=-1,2
+  p=2,0 v=2,-1
+  p=0,0 v=1,3
+  p=3,0 v=-2,-2
+  p=7,6 v=-1,-3
+  p=3,0 v=-1,-2
+  p=9,3 v=2,3
+  p=7,3 v=-1,2
+  p=2,4 v=2,-3
+  p=9,5 v=-3,-3
+  """
+  @expected 12
+
+  test "part one" do
+    actual = run(@input, 11, 7)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def run(input, tries, max_x \\ 101, max_y \\ 103) do
+    map = Parser.parse(input)
+
+    1..tries
+    |> Enum.map(fn time ->
+      [
+        "---Time #{time}---"
+        | Shared.move(map, time, max_x, max_y)
+          |> to_string(max_x, max_y)
+      ]
+    end)
+  end
+
+  defp to_string(map, max_x, max_y) do
+    0..(max_y - 1)
+    |> Enum.reduce([], fn y, bathroom ->
+      0..(max_x - 1)
+      |> Enum.reduce([], fn x, line ->
+        [if(Map.has_key?(map, {x, y}), do: "#", else: " ") | line]
+      end)
+      |> Enum.reverse()
+      |> Enum.join()
+      |> then(&[&1 | bathroom])
+    end)
+    |> Enum.reverse()
+  end
+end
+```
+
+### Solution - Part 2
+
+```elixir
+content =
+  PartTwo.run(puzzle_input, 10000)
+  |> Enum.filter(fn state ->
+    state
+    |> Enum.any?(fn line -> String.contains?(line, "##########") end)
+  end)
+  |> List.flatten()
+  |> Enum.join("\n")
+
+Kino.Download.new(
+  fn -> content end,
+  filename: "result.txt",
+  label: "Result"
+)
+```
+
+<!-- livebook:{"offset":4469,"stamp":{"token":"XCP.ZVkPE3vz3kmcRynNciWdICniP9dKOti2JSnpE84b_r97tPfiAgf7lc174-qjuGF5LqG4uQ_v44j2NXy9BHnQ54CWMbcKiiNgl0IjrPDQuNgSjNV4iRQ","version":2}} -->
