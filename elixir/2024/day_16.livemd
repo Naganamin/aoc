@@ -1,0 +1,324 @@
+# Advent of Code 2024 - Day 16
+
+```elixir
+Mix.install([
+  :kino_aoc,
+  :prioqueue
+])
+```
+
+## Introduction
+
+[2024 - Day 16](https://adventofcode.com/2024/day/16)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxNiIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "16", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {line, y} ->
+      line
+      |> String.graphemes()
+      |> Enum.with_index()
+      |> Enum.filter(fn {char, _} -> char != "." end)
+      |> Enum.map(fn {char, x} -> {{x, y}, char} end)
+    end)
+    |> Map.new()
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  #####
+  #S.E#
+  #####
+  """
+  @expected %{
+    {0, 0} => "#",
+    {0, 1} => "#",
+    {0, 2} => "#",
+    {1, 0} => "#",
+    {1, 1} => "S",
+    {1, 2} => "#",
+    {2, 0} => "#",
+    {2, 2} => "#",
+    {3, 0} => "#",
+    {3, 1} => "E",
+    {3, 2} => "#",
+    {4, 0} => "#",
+    {4, 1} => "#",
+    {4, 2} => "#"
+  }
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def scan(map, visited, queue, distant) do
+    if Prioqueue.empty?(queue) do
+      distant
+    else
+      {{path = [node | _], node_distant, dir}, queue} = Prioqueue.extract_min!(queue)
+
+      case neighbour(map, visited, path, dir) do
+        [] ->
+          scan(map, MapSet.put(visited, {node, dir}), queue, distant)
+
+        neighbours ->
+          {distant, queue} =
+            neighbours
+            |> Enum.reduce({distant, queue}, fn {path = [node | _], cost, dir},
+                                                {distant, queue} ->
+              cost = node_distant + cost
+
+              queue = Prioqueue.insert(queue, {path, cost, dir})
+
+              distant =
+                case Map.get(map, node) do
+                  "E" ->
+                    {final_cost, paths} = distant
+
+                    cond do
+                      cost == final_cost -> {final_cost, [path | paths]}
+                      less_than(cost, final_cost) -> {cost, [path]}
+                      true -> distant
+                    end
+
+                  _ ->
+                    distant
+                end
+
+              {distant, queue}
+            end)
+
+          scan(map, MapSet.put(visited, {node, dir}), queue, distant)
+      end
+    end
+  end
+
+  defp neighbour(map, visited, path = [{x, y} | _], curr_d = {dx, dy}) do
+    [:none, :clock, :c_clock]
+    |> Enum.map(fn dir ->
+      next_dir = {dx, dy} = turn(dx, dy, dir)
+      next = {x + dx, y + dy}
+      {[next | path], cost(curr_d, next_dir), next_dir}
+    end)
+    |> Enum.filter(fn {[next | _], _, dir} ->
+      Map.get(map, next) != "#" and
+        !MapSet.member?(visited, {next, dir})
+    end)
+  end
+
+  defp cost(d, d), do: 1
+  defp cost(_, _), do: 1001
+
+  defp turn(x, y, :none), do: {x, y}
+  defp turn(x, y, :clock), do: {-y, x}
+  defp turn(x, y, :c_clock), do: {y, -x}
+
+  defp less_than(_, :infinity), do: true
+  defp less_than(a, b), do: a < b
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    map = Parser.parse(input)
+
+    curr =
+      map
+      |> Enum.find(fn {_, char} -> char == "S" end)
+      |> then(&elem(&1, 0))
+
+    queue =
+      Prioqueue.new(
+        [
+          {[curr], 0, {1, 0}}
+        ],
+        cmp_fun: fn {_, a, _}, {_, b, _} -> Prioqueue.Helper.cmp(a, b) end
+      )
+
+    Shared.scan(
+      map,
+      MapSet.new(),
+      queue,
+      {:infinity, []}
+    )
+    |> elem(0)
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  ###############
+  #.......#....E#
+  #.#.###.#.###.#
+  #.....#.#...#.#
+  #.###.#####.#.#
+  #.#.#.......#.#
+  #.#.#####.###.#
+  #...........#.#
+  ###.#.#####.#.#
+  #...#.....#.#.#
+  #.#.#.###.#.#.#
+  #.....#...#.#.#
+  #.###.#.#.#.#.#
+  #S..#.....#...#
+  ###############
+  """
+  @expected 7036
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    map = Parser.parse(input)
+
+    curr =
+      map
+      |> Enum.find(fn {_, char} -> char == "S" end)
+      |> then(&elem(&1, 0))
+
+    queue =
+      Prioqueue.new(
+        [
+          {[curr], 0, {1, 0}}
+        ],
+        cmp_fun: fn {_, a, _}, {_, b, _} -> Prioqueue.Helper.cmp(a, b) end
+      )
+    Shared.scan(
+      map,
+      MapSet.new(),
+      queue,
+      {:infinity, []}
+    )
+    |> elem(1)
+    |> Enum.flat_map(&Function.identity/1)
+    |> Enum.uniq()
+    |> Enum.count()
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  ###############
+  #.......#....E#
+  #.#.###.#.###.#
+  #.....#.#...#.#
+  #.###.#####.#.#
+  #.#.#.......#.#
+  #.#.#####.###.#
+  #...........#.#
+  ###.#.#####.#.#
+  #...#.....#.#.#
+  #.#.#.###.#.#.#
+  #.....#...#.#.#
+  #.###.#.#.#.#.#
+  #S..#.....#...#
+  ###############
+  """
+  @expected 45
+
+  test "part two" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":6039,"stamp":{"token":"XCP.P7FrkKcJ8WmkgR-JsVwzi7Gz-nao8gPfTH_xfdPau18Sdt2om5klRXaUrWEnhEuK7IkD11dmC78nDxsG27ZXNtOgapNzuOy0TXdzmdKr9Kh1NUvQ4vk","version":2}} -->

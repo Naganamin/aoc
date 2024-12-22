@@ -1,0 +1,239 @@
+# Advent of Code 2024 - Day 17
+
+```elixir
+Mix.install([
+  :kino_aoc,
+  :memoize
+])
+```
+
+## Introduction
+
+[2024 - Day 17](https://adventofcode.com/2024/day/17)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxNyIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "17", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.chunk_by(fn s -> String.contains?(s, "Register") end)
+    |> then(fn [regs, ["Program: " <> program]] ->
+      regs = regs
+        |> Enum.map(fn reg -> String.split(reg, " ") end)
+        |> Enum.map(fn [_, _, value] -> String.to_integer(value) end)
+
+      program = program
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
+      |> Enum.chunk_every(2, 2, :discard)
+
+      {regs, program}
+    end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  Register A: 1
+  Register B: 2
+  Register C: 3
+
+  Program: 1,1,5,6
+  """
+  @expected {[1, 2, 3], [[1, 1], [5, 6]]}
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  import Bitwise
+
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {regs, program} = Parser.parse(input)
+
+    run_program(regs, program)
+  end
+
+  def run_program(regs, program) do
+    run_program(regs, [], 0, program)
+    |> Enum.reverse()
+    |> Enum.join(",")
+  end
+
+  defp run_program(_, out_put, idx, _) when idx < 0, do: out_put
+
+  defp run_program(regs, out_put, idx, program) do
+    case Enum.at(program, idx) do
+      nil ->
+        out_put
+
+      [code, operand] ->
+        case run(regs, code, operand) do
+          {:out, value} -> run_program(regs, [value | out_put], idx + 1, program)
+          {:jump_to, value} -> run_program(regs, out_put, div(value, 2), program)
+          regs = [_, _, _] -> run_program(regs, out_put, idx + 1, program)
+        end
+    end
+  end
+
+  defp run(regs = [a | rest], _adv = 0, operand), do: [dv(a, regs, operand) | rest]
+
+  defp run([a, b, c], _bxl = 1, operand), do: [a, bxor(b, operand), c]
+
+  defp run(regs = [a, _, c], _bst = 2, operand), do: [a, mod8(regs, operand), c]
+
+  defp run(regs = [0 | _], _jnz = 3, _), do: regs
+  defp run(_, _jnz = 3, operand), do: {:jump_to, operand}
+
+  defp run([a, b, c], _bxc = 4, _), do: [a, bxor(b, c), c]
+
+  defp run(regs, _out = 5, operand), do: {:out, mod8(regs, operand)}
+
+  defp run(regs = [a, _, c], _bdv = 6, operand), do: [a, dv(a, regs, operand), c]
+
+  defp run(regs = [a, b, _], _cdv = 7, operand), do: [a, b, dv(a, regs, operand)]
+
+  defp dv(n, regs, operand), do: div(n, 2 ** combo(regs, operand))
+  defp mod8(regs, operand), do: regs |> combo(operand) |> then(&rem(&1, 8))
+
+  defp combo(_, operand) when operand in 0..3, do: operand
+  defp combo([a, _, _], 4), do: a
+  defp combo([_, b, _], 5), do: b
+  defp combo([_, _, c], 6), do: c
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  Register A: 729
+  Register B: 0
+  Register C: 0
+
+  Program: 0,1,5,4,3,0
+  """
+  @expected "4,6,3,5,6,3,5,2,1,0"
+
+  test "part one" do
+    actual = run(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  import Bitwise
+
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input) do
+    {_, program} = Parser.parse(input)
+
+    program = List.flatten(program) |> Enum.reverse()
+
+    check([], &f/1, program)
+  end
+
+  def f(a) do
+    b = rem(a, 8)
+    b = bxor(b, 1)
+    c = div(a, 2 ** b)
+    b = bxor(b, 5)
+    b = bxor(b, c)
+    rem(b, 8)
+  end
+
+  defp check(result, _, []), do: result |> Enum.min()
+
+  defp check(result, fun, [num | rest]) do
+    0..7
+    |> Enum.flat_map(fn i ->
+      case result do
+        [] ->
+          [i]
+
+        numbers ->
+          Enum.map(numbers, fn number -> number * 8 + i end)
+      end
+    end)
+    |> Enum.filter(fn number ->
+      fun.(number) == num
+    end)
+    |> check(fun, rest)
+  end
+end
+```
+
+### Solution - Part 2
+
+```elixir
+# Solution tailored to input, no test
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4812,"stamp":{"token":"XCP.99QAZHxWspH9eNZ9DJQXMmAwS_WxyVg-QTbc-OlGxM8-2RGmiVKbdwEmZZhb9UYY08jSYyepPQ3XvKCxDJ77qxo5lFhfOO4ogACXYSl1AjEa8YZ0coM","version":2}} -->

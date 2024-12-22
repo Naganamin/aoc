@@ -1,0 +1,284 @@
+# Advent of Code 2024 - Day 18
+
+```elixir
+Mix.install([
+  :kino_aoc,
+  :prioqueue
+])
+```
+
+## Introduction
+
+[2024 - Day 18](https://adventofcode.com/2024/day/13)
+
+## Puzzle
+
+<!-- livebook:{"attrs":"eyJhc3NpZ25fdG8iOiJwdXp6bGVfaW5wdXQiLCJkYXkiOiIxOCIsInNlc3Npb25fc2VjcmV0IjoiQU9DX1NFU1NJT04iLCJ5ZWFyIjoiMjAyNCJ9","chunks":null,"kind":"Elixir.KinoAOC.HelperCell","livebook_object":"smart_cell"} -->
+
+```elixir
+{:ok, puzzle_input} =
+  KinoAOC.download_puzzle("2024", "18", System.fetch_env!("LB_AOC_SESSION"))
+```
+
+## Parser
+
+### Code - Parser
+
+```elixir
+defmodule Parser do
+  def parse(input) do
+    input
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      line
+      |> String.split(",")
+      |> Enum.map(&String.to_integer/1)
+    end)
+    |> Enum.map(fn [x, y] -> {x, y} end)
+  end
+end
+```
+
+### Tests - Parser
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule ParserTest do
+  use ExUnit.Case, async: true
+  import Parser
+
+  @input """
+  1,2
+  3,4
+  """
+  @expected [{1, 2}, {3, 4}]
+
+  test "parse test" do
+    actual = parse(@input)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+## Shared
+
+```elixir
+defmodule Shared do
+  def scan(map, queue, visited, distants, max_x, max_y) do
+    if Prioqueue.empty?(queue) do
+      distants
+    else
+      {{node, distant}, queue} = Prioqueue.extract_min!(queue)
+
+      if MapSet.member?(visited, node) do
+        scan(map, queue, visited, distants, max_x, max_y)
+      else
+        visited = MapSet.put(visited, node)
+
+        {queue, distants} =
+          neighbour(map, node, max_x, max_y)
+          |> Enum.filter(fn next -> !MapSet.member?(visited, next) end)
+          |> Enum.reduce({queue, distants}, fn next, {queue, distants} ->
+            distant = distant + 1
+            distants = Map.update(distants, next, distant, &min(&1, distant))
+            queue = Prioqueue.insert(queue, {next, distant})
+
+            {queue, distants}
+          end)
+
+        scan(map, queue, visited, distants, max_x, max_y)
+      end
+    end
+  end
+
+  def neighbour(map, {x, y}, max_x, max_y) do
+    [{1, 0}, {0, -1}, {-1, 0}, {0, 1}]
+    |> Enum.map(fn {dx, dy} -> {x + dx, y + dy} end)
+    |> Enum.filter(fn next = {x, y} ->
+      in_range?(x, y, max_x, max_y) and !MapSet.member?(map, next)
+    end)
+  end
+
+  def in_range?(x, y, max_x, max_y) do
+    x >= 0 and x <= max_x and y >= 0 and y <= max_y
+  end
+end
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part One
+
+### Code - Part 1
+
+```elixir
+defmodule PartOne do
+  import Shared
+
+  def solve(input) do
+    IO.puts("--- Part One ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input, take \\ 1024, max_x \\ 70, max_y \\ 70) do
+    input
+    |> Parser.parse()
+    |> Enum.take(take)
+    |> MapSet.new()
+    |> scan(
+      Prioqueue.new(
+        [{{0, 0}, 0}],
+        cmp_fun: fn {_, a}, {_, b} -> Prioqueue.Helper.cmp(a, b) end
+      ),
+      _visited = MapSet.new(),
+      _distants = Map.new(),
+      max_x,
+      max_y
+    )
+    |> Map.get({max_x, max_y})
+  end
+end
+```
+
+### Tests - Part 1
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartOneTest do
+  use ExUnit.Case, async: true
+  import PartOne
+
+  @input """
+  5,4
+  4,2
+  4,5
+  3,0
+  2,1
+  6,3
+  2,4
+  1,5
+  0,6
+  3,3
+  2,6
+  5,1
+  """
+  @expected 22
+
+  test "part one" do
+    actual = run(@input, 12, 6, 6)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 1
+
+```elixir
+PartOne.solve(puzzle_input)
+```
+
+<!-- livebook:{"branch_parent_index":2} -->
+
+## Part Two
+
+### Code - Part 2
+
+```elixir
+defmodule PartTwo do
+  import Shared
+
+  def solve(input) do
+    IO.puts("--- Part Two ---")
+    IO.puts("Result: #{run(input)}")
+  end
+
+  def run(input, take_from \\ 1024, max_x \\ 70, max_y \\ 70) do
+    bytes = Parser.parse(input)
+
+    # can do binary search style to speed up, but too lazy
+    take_from..(Enum.count(bytes) - 1)
+    |> Enum.take_while(fn take ->
+      bytes
+      |> Enum.take(take)
+      |> MapSet.new()
+      |> scan(
+        Prioqueue.new(
+          [{{0, 0}, 0}],
+          cmp_fun: fn {_, a}, {_, b} -> Prioqueue.Helper.cmp(a, b) end
+        ),
+        _visited = MapSet.new(),
+        _distants = Map.new(),
+        max_x,
+        max_y
+      )
+      |> Map.get({max_x, max_y}) != nil
+    end)
+    |> List.last()
+    |> then(fn take -> 
+      {x, y} = Enum.at(bytes, take)
+      "#{x},#{y}"
+    end)
+  end
+end
+```
+
+### Tests - Part 2
+
+```elixir
+ExUnit.start(autorun: false)
+
+defmodule PartTwoTest do
+  use ExUnit.Case, async: true
+  import PartTwo
+
+  @input """
+  5,4
+  4,2
+  4,5
+  3,0
+  2,1
+  6,3
+  2,4
+  1,5
+  0,6
+  3,3
+  2,6
+  5,1
+  1,2
+  5,5
+  2,5
+  6,5
+  1,4
+  0,4
+  6,4
+  1,1
+  6,1
+  1,0
+  0,5
+  1,6
+  2,0
+  """
+  @expected "6,1"
+
+  test "part two" do
+    actual = run(@input, 12, 6, 6)
+    assert actual == @expected
+  end
+end
+
+ExUnit.run()
+```
+
+### Solution - Part 2
+
+```elixir
+PartTwo.solve(puzzle_input)
+```
+
+<!-- livebook:{"offset":4864,"stamp":{"token":"XCP.0p0kr8-CJVRp8xrqBZ7yzsGC6mDFFcAwxNhV_7R-O8LjKg8xjhtSwHPKY3NrkKWBaiRfNmsbqdfnpNG8T3q8PuqdXqv8rKYZxMObI2F1B4dH9wmpnCs","version":2}} -->
